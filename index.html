@@ -1,0 +1,482 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Visor Geohistórico Interactivo (VGI)</title>
+
+  <!-- Leaflet CSS -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+
+  <meta name="description" content="Visor geohistórico para explorar pueblos y territorios de los siglos XIX y XX en los Valles Centrales de Oaxaca." />
+  <meta name="theme-color" content="#3f2a1d" />
+  <style>
+    :root {
+      --brown-950:hsl(140, 93%, 29%); --brown-900:hsl(180, 98%, 20%); --brown-800:hsl(133, 91%, 36%);
+      --terracotta:#a65f3a; --terracotta-dark:hsl(138, 82%, 19%); --ivory:#f7f2e8;
+      --paper:#fffdf8; --ink:#25211e; --muted:#746f68; --green:#526653;
+      --line:rgba(63,42,29,.14); --shadow:0 14px 38px rgba(36,24,16,.2);
+    }
+    * { box-sizing:border-box; }
+    html, body { height:100%; margin:0; }
+    body { display:flex; flex-direction:column; overflow:hidden; font-family:Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif; background:var(--ivory); color:var(--ink); }
+    button, select, input { font:inherit; }
+    button, summary, select, input[type="checkbox"], input[type="range"] { cursor:pointer; }
+    :focus-visible { outline:3px solid rgba(166,95,58,.45); outline-offset:2px; }
+
+    #top { min-height:76px; display:flex; align-items:center; gap:22px; padding:12px 18px; background:rgba(255,253,248,.97); border-bottom:1px solid var(--line); box-shadow:0 4px 20px rgba(36,24,16,.08); z-index:1300; }
+    .brand { display:flex; align-items:center; gap:12px; min-width:0; margin-right:auto; }
+    .brand-mark { width:42px; height:42px; display:grid; place-items:center; flex:0 0 auto; border-radius:12px; color:#fff; background:linear-gradient(145deg,var(--terracotta),var(--brown-900)); box-shadow:0 6px 16px rgba(166,95,58,.24); font-family:Georgia,serif; font-weight:700; }
+    .app-title { color:var(--brown-900); font-family:Georgia,"Times New Roman",serif; font-weight:700; font-size:1.12rem; letter-spacing:.015em; line-height:1.15; }
+    .subtitle { color:var(--muted); font-size:.78rem; margin-top:3px; max-width:510px; line-height:1.25; }
+    .toolbar { display:flex; align-items:end; gap:9px; }
+    .field { display:grid; gap:4px; }
+    .field label { color:var(--muted); font-size:.68rem; font-weight:700; letter-spacing:.06em; text-transform:uppercase; }
+    select, .tool-button { min-height:40px; border:1px solid var(--line); border-radius:10px; background:var(--paper); color:var(--ink); padding:8px 12px; box-shadow:0 2px 8px rgba(36,24,16,.05); }
+    .tool-button { display:inline-flex; align-items:center; justify-content:center; gap:7px; font-weight:650; }
+    .tool-button:hover { border-color:rgba(166,95,58,.45); background:#fff8ef; }
+    #layers-button { background:var(--brown-900); color:#fff; border-color:var(--brown-900); }
+
+    #map-container { position:relative; flex:1; min-height:0; }
+    #map { position:absolute; inset:0; background:#dedbd2; }
+    .leaflet-control-zoom a { color:var(--brown-900); }
+    .leaflet-control-attribution { font-size:10px; }
+
+    #paneles-laterales { position:absolute; top:16px; right:16px; z-index:1200; width:min(370px,calc(100% - 32px)); max-height:calc(100% - 32px); display:flex; flex-direction:column; overflow:hidden; background:rgba(255,253,248,.97); color:var(--ink); border:1px solid rgba(255,255,255,.8); border-radius:16px; box-shadow:var(--shadow); backdrop-filter:blur(14px); transition:transform .22s ease,opacity .22s ease; }
+    #paneles-laterales.is-hidden { transform:translateX(calc(100% + 28px)); opacity:0; pointer-events:none; }
+    .panel-heading { padding:16px 16px 12px; border-bottom:1px solid var(--line); }
+    .panel-kicker { color:var(--terracotta-dark); font-size:.69rem; font-weight:800; letter-spacing:.09em; text-transform:uppercase; }
+    .panel-title { margin:3px 0 4px; color:var(--brown-900); font-family:Georgia,serif; font-size:1.15rem; }
+    .panel-copy { margin:0; color:var(--muted); font-size:.76rem; line-height:1.4; }
+    #layer-search { width:100%; margin-top:12px; border:1px solid var(--line); border-radius:10px; padding:9px 11px; color:var(--ink); background:#fff; }
+    .panel-scroll { overflow:auto; overscroll-behavior:contain; scrollbar-width:thin; }
+    .layer-columns { position:sticky; top:0; z-index:2; display:grid; grid-template-columns:minmax(0,1fr) 52px 52px; align-items:center; padding:10px 16px 8px; border-bottom:1px solid var(--line); background:rgba(247,242,232,.98); color:var(--muted); font-size:.62rem; font-weight:800; letter-spacing:.06em; text-transform:uppercase; }
+    .layer-columns span:not(:first-child) { text-align:center; }
+    #pueblo-controls { padding:6px 9px 10px; }
+    .district-group { margin:6px 0; border:1px solid var(--line); border-radius:10px; overflow:hidden; }
+    .district-group[hidden] { display:none; }
+    .district-group > summary { padding:12px 10px; color:var(--brown-900); background:var(--ivory); font-weight:750; font-size:.85rem; }
+    .district-group > summary:hover { background:#efe5d5; }
+    .district-group[open] > summary { border-bottom:1px solid var(--line); }
+    .district-count { float:right; color:var(--muted); font-size:.72rem; font-weight:500; }
+    .pueblo-row { display:grid; grid-template-columns:minmax(0,1fr) 52px 52px; align-items:center; min-height:47px; padding:6px 7px; border-bottom:1px solid rgba(63,42,29,.07); border-radius:9px; font-size:.77rem; }
+    .pueblo-row:last-child { border-bottom:0; }
+    .pueblo-row:hover { background:#f9f3e9; }
+    .pueblo-row[hidden] { display:none; }
+    .pueblo-name { min-width:0; padding-right:7px; color:var(--ink); font-weight:620; line-height:1.25; }
+    .layer-check { display:grid; place-items:center; position:relative; }
+    .layer-check input { margin:0; }
+    .layer-check input:disabled { cursor:not-allowed; opacity:.42; }
+    .pending-mark { position:absolute; right:2px; bottom:-6px; color:var(--muted); font-size:.54rem; font-weight:700; }
+    .opacity-row { display:none; grid-column:1 / -1; grid-template-columns:auto 1fr auto; align-items:center; gap:8px; margin:5px 5px 2px; padding:7px 9px; border-radius:8px; background:rgba(166,95,58,.08); color:var(--muted); font-size:.66rem; }
+    .pueblo-row.map-active .opacity-row { display:grid; }
+    input[type="checkbox"] { width:17px; height:17px; flex:0 0 auto; accent-color:var(--terracotta); }
+    input[type="range"] { width:100%; accent-color:var(--terracotta); }
+    input[type="range"]:disabled { opacity:.32; cursor:not-allowed; }
+    output { width:31px; color:var(--muted); font-variant-numeric:tabular-nums; font-size:.68rem; text-align:right; }
+    .empty-state { padding:12px 8px; color:var(--muted); font-size:.76rem; line-height:1.4; }
+    .map-status { position:absolute; left:50%; bottom:18px; z-index:1100; transform:translateX(-50%); max-width:calc(100% - 32px); padding:9px 13px; border-radius:999px; color:#fff; background:rgba(63,42,29,.9); box-shadow:0 7px 20px rgba(36,24,16,.2); font-size:.73rem; opacity:0; pointer-events:none; transition:opacity .2s; }
+    .map-status.show { opacity:1; }
+    #footer { flex:0 0 auto; padding:6px 14px; background:var(--brown-900); color:#ede4d8; font-size:.68rem; text-align:center; }
+
+    dialog { width:min(560px,calc(100% - 30px)); padding:0; border:0; border-radius:18px; color:var(--ink); background:var(--paper); box-shadow:0 26px 70px rgba(36,24,16,.35); }
+    dialog::backdrop { background:rgba(36,24,16,.58); backdrop-filter:blur(3px); }
+    dialog.dialog-fallback { position:fixed; inset:50% auto auto 50%; z-index:2000; transform:translate(-50%,-50%); }
+    .dialog-body { padding:24px; }
+    .dialog-body h2 { margin:0 0 10px; color:var(--brown-900); font-family:Georgia,serif; }
+    .dialog-body p, .dialog-body li { color:var(--muted); font-size:.9rem; line-height:1.55; }
+    .dialog-actions { display:flex; justify-content:flex-end; padding:14px 24px; border-top:1px solid var(--line); background:var(--ivory); }
+
+    @media (max-width:720px) {
+      #top { min-height:auto; align-items:flex-start; flex-wrap:wrap; gap:10px; padding:10px 12px; }
+      .brand { width:100%; }
+      .brand-mark { width:36px; height:36px; border-radius:10px; }
+      .app-title { font-size:1rem; }
+      .subtitle { font-size:.71rem; max-width:300px; }
+      .toolbar { width:100%; align-items:end; }
+      .toolbar .field { flex:1; }
+      select { width:100%; }
+      .tool-button .button-label { display:none; }
+      #paneles-laterales { top:auto; bottom:10px; right:10px; width:calc(100% - 20px); max-height:min(62%,520px); border-radius:16px; }
+      #paneles-laterales.is-hidden { transform:translateY(calc(100% + 20px)); }
+      .panel-heading { padding:12px 14px 10px; }
+      .panel-title { font-size:1rem; }
+      .panel-copy { display:none; }
+      #layer-search { margin-top:8px; }
+      .layer-columns, .pueblo-row { grid-template-columns:minmax(0,1fr) 48px 48px; }
+      #footer { display:none; }
+      .leaflet-control-attribution { max-width:70%; overflow:hidden; white-space:nowrap; }
+    }
+    @media (prefers-reduced-motion:reduce) { *,*::before,*::after { scroll-behavior:auto!important; transition:none!important; } }
+  </style>
+</head>
+<body>
+
+  <header id="top">
+    <div class="brand">
+      <div class="brand-mark" aria-hidden="true">VGI</div>
+      <div>
+        <div class="app-title">Visor Geohistórico Interactivo</div>
+        <div class="subtitle">Pueblos y territorios de los siglos XIX–XX · Valles Centrales de Oaxaca</div>
+      </div>
+    </div>
+    <div class="toolbar" aria-label="Herramientas del mapa">
+      <div class="field">
+        <label for="base">Mapa base</label>
+        <select id="base" aria-label="Seleccionar mapa base">
+        <option value="osm">OSM</option>
+        <option value="opentopo" selected>OpenTopo</option>
+        <option value="esri">Esri Imagery</option>
+        </select>
+      </div>
+      <button id="reset-button" class="tool-button" type="button" title="Restablecer vista"><span aria-hidden="true">↺</span><span class="button-label">Restablecer</span></button>
+      <button id="help-button" class="tool-button" type="button" title="Cómo usar el visor"><span aria-hidden="true">?</span><span class="button-label">Ayuda</span></button>
+      <button id="layers-button" class="tool-button" type="button" aria-label="Mostrar u ocultar capas" aria-controls="paneles-laterales" aria-expanded="true"><span aria-hidden="true">☷</span><span class="button-label">Capas</span></button>
+    </div>
+  </header>
+
+  <div id="map-container">
+    <!-- Contenedor del mapa -->
+    <div id="map"></div>
+
+    <aside id="paneles-laterales" aria-label="Capas del mapa">
+      <div class="panel-heading">
+        <div class="panel-kicker">Panel geo-histórico</div>
+        <h1 class="panel-title">Capas cartográficas</h1>
+        <p class="panel-copy">Cada pueblo reúne su mapa histórico y su límite territorial. Actívalos juntos o por separado.</p>
+        <input id="layer-search" type="search" placeholder="Buscar un pueblo…" aria-label="Buscar un pueblo" />
+      </div>
+      <div class="panel-scroll">
+        <div class="layer-columns" aria-hidden="true">
+          <span>Pueblo</span><span>Mapa</span><span>Límite</span>
+        </div>
+        <div id="pueblo-controls"></div>
+      </div>
+    </aside>
+    <div id="map-status" class="map-status" role="status" aria-live="polite"></div>
+  </div>
+
+  <footer id="footer">
+    Construido por: Antonio Escobar Ohmstede, Daniela Osorio Crespo y Carlos Alfredo Hernández Guillén
+  </footer>
+
+  <dialog id="help-dialog" aria-labelledby="help-title">
+    <div class="dialog-body">
+      <div class="panel-kicker">Guía rápida</div>
+      <h2 id="help-title">Cómo utilizar el visor</h2>
+      <ol>
+        <li>Elige un mapa base en la barra superior.</li>
+        <li>Abre o cierra los grupos Centro, Etla, Ocotlán y Tlacolula haciendo clic en su nombre. Plegarlos conserva las capas activadas.</li>
+        <li>En cada pueblo, activa el mapa histórico, el límite territorial o ambos.</li>
+        <li>Ajusta el porcentaje de opacidad para comparar el territorio pasado con el actual.</li>
+        <li>Activa un límite de pueblo para acercarte automáticamente a su extensión.</li>
+      </ol>
+      <p>Los límites representan una reconstrucción histórica y deben interpretarse de acuerdo con las fuentes y la metodología del proyecto.</p>
+    </div>
+    <div class="dialog-actions"><button id="close-help" class="tool-button" type="button">Entendido</button></div>
+  </dialog>
+
+  <!-- Leaflet JS -->
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+  <script>
+    document.addEventListener("DOMContentLoaded", function () {
+    
+      const initialView = { center: [17.046, -96.635], zoom: 14 };
+      const map = L.map("map", initialView);
+      const statusEl = document.getElementById("map-status");
+      let statusTimer;
+      function showStatus(message) {
+        statusEl.textContent = message;
+        statusEl.classList.add("show");
+        clearTimeout(statusTimer);
+        statusTimer = setTimeout(() => statusEl.classList.remove("show"), 3200);
+      }
+    
+      /* MAPAS BASE */
+      const base = {
+        osm: L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+          maxZoom: 20,
+          attribution: "© OpenStreetMap"
+        }),
+        opentopo: L.tileLayer("https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png", {
+          maxZoom: 18,
+          attribution: "© OpenTopoMap"
+        }),
+        esri: L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}", {
+          maxZoom: 20,
+          attribution: "© Esri, Maxar"
+        })
+      };
+    
+      base.opentopo.addTo(map);
+    
+      document.getElementById("base").addEventListener("change", e => {
+        Object.values(base).forEach(l => map.removeLayer(l));
+        base[e.target.value].addTo(map);
+      });
+    
+  /* PUEBLOS: CATÁLOGO ÚNICO DE MAPAS Y LÍMITES */
+// Rutas relativas a index.html:
+// ./tiles/pueblos/ID/{z}/{x}/{y}.png
+// ./geojson/pueblos/ID.geojson
+// Cambia mapaDisponible o limiteDisponible a false si el recurso está pendiente.
+// Se conserva la configuración TMS del visor original.
+const catalogoPueblos = [
+  { id: "san_andres_huayapan", nombre: "Pueblo San Andrés Huayapan", grupo: "Centro", mapaDisponible: true, limiteDisponible: true },
+  { id: "san_bartolo_coyotepec", nombre: "Pueblo San Bartolo Coyotepec", grupo: "Centro", mapaDisponible: true, limiteDisponible: true },
+  { id: "san_felipe_del_agua", nombre: "Pueblo San Felipe del Agua", grupo: "Centro", mapaDisponible: true, limiteDisponible: true },
+  { id: "san_martin_mexicapan", nombre: "Pueblo San Martín Mexicapan", grupo: "Centro", mapaDisponible: true, limiteDisponible: true },
+  { id: "san_matias_jalatlaco", nombre: "Pueblo San Matías Jalatlaco", grupo: "Centro", mapaDisponible: true, limiteDisponible: true },
+  { id: "san_pedro_ixtlahuaca", nombre: "Pueblo San Pedro Ixtlahuaca", grupo: "Centro", mapaDisponible: true, limiteDisponible: true },
+  { id: "san_raymundo_jalpan", nombre: "Pueblo San Raymundo Jalpan", grupo: "Centro", mapaDisponible: true, limiteDisponible: true },
+  { id: "santa_cruz_amilpas", nombre: "Pueblo Santa Cruz Amilpas", grupo: "Centro", mapaDisponible: true, limiteDisponible: true },
+  { id: "santa_lucia_del_camino", nombre: "Pueblo Santa Lucía del Camino", grupo: "Centro", mapaDisponible: true, limiteDisponible: true },
+  { id: "santo_domingo_tomaltepec", nombre: "Pueblo Santo Domingo Tomaltepec", grupo: "Centro", mapaDisponible: true, limiteDisponible: true },
+  { id: "san_juan_bautista_guelache", nombre: "Pueblo San Juan Bautista Guelache", grupo: "Etla", mapaDisponible: true, limiteDisponible: true },
+  { id: "san_juan_sosola", nombre: "Pueblo San Juan Sosola", grupo: "Etla", mapaDisponible: true, limiteDisponible: true },
+  { id: "san_pablo_huitzo", nombre: "Pueblo San Pablo Huitzo", grupo: "Etla", mapaDisponible: true, limiteDisponible: true },
+  { id: "san_sebastian_etla", nombre: "Pueblo San Sebastián Etla", grupo: "Etla", mapaDisponible: true, limiteDisponible: true },
+  { id: "santo_domingo_barrio_alto", nombre: "Pueblo Santo Domingo Barrio Alto", grupo: "Etla", mapaDisponible: true, limiteDisponible: true },
+  { id: "santo_domingo_tlaltinango", nombre: "Pueblo Santo Domingo Tlaltinango", grupo: "Etla", mapaDisponible: true, limiteDisponible: true },
+  { id: "santo_tomas_mazaltepec", nombre: "Pueblo Santo Tomás Mazaltepec", grupo: "Etla", mapaDisponible: true, limiteDisponible: true },
+  { id: "san_antonino_ocotlan", nombre: "Pueblo San Antonino Ocotlán", grupo: "Ocotlán", mapaDisponible: true, limiteDisponible: true },
+  { id: "san_baltazar_chichicapam", nombre: "Pueblo San Baltazar Chichicápam", grupo: "Ocotlán", mapaDisponible: true, limiteDisponible: true },
+  { id: "san_cristobal_ixcatlan", nombre: "Pueblo San Cristóbal Ixcatlán", grupo: "Ocotlán", mapaDisponible: true, limiteDisponible: true },
+  { id: "san_dionisio_ocotlan", nombre: "Pueblo San Dionisio Ocotlán", grupo: "Ocotlán", mapaDisponible: true, limiteDisponible: true },
+  { id: "san_juan_y_san_jacinto_chilateca", nombre: "Pueblo San Juan y San Jacinto Chilateca", grupo: "Ocotlán", mapaDisponible: true, limiteDisponible: true },
+  { id: "san_lucas_ocotlan", nombre: "Pueblo San Lucas Ocotlán", grupo: "Ocotlán", mapaDisponible: true, limiteDisponible: true },
+  { id: "san_martin_ticajete", nombre: "Pueblo San Martín Ticajete", grupo: "Ocotlán", mapaDisponible: true, limiteDisponible: true },
+  { id: "san_pedro_apostol", nombre: "Pueblo San Pedro Apóstol", grupo: "Ocotlán", mapaDisponible: true, limiteDisponible: true },
+  { id: "san_pedro_guegorexe", nombre: "Pueblo San Pedro Guegorexe", grupo: "Ocotlán", mapaDisponible: true, limiteDisponible: true },
+  { id: "san_pedro_martir", nombre: "Pueblo San Pedro Mártir", grupo: "Ocotlán", mapaDisponible: true, limiteDisponible: true },
+  { id: "santa_catarina_minas", nombre: "Pueblo Santa Catarina Minas", grupo: "Ocotlán", mapaDisponible: true, limiteDisponible: true },
+  { id: "santa_cecilia_jalieza", nombre: "Pueblo Santa Cecilia Jalieza", grupo: "Ocotlán", mapaDisponible: true, limiteDisponible: true },
+  { id: "santa_lucia_ocotlan", nombre: "Pueblo Santa Lucía Ocotlán", grupo: "Ocotlán", mapaDisponible: true, limiteDisponible: true },
+  { id: "santiago_apostol_y_santa_maria_asuncion", nombre: "Pueblo Santiago Apóstol y Santa María Asunción", grupo: "Ocotlán", mapaDisponible: true, limiteDisponible: true },
+  { id: "santiago_ocotlan", nombre: "Pueblo Santiago Ocotlán", grupo: "Ocotlán", mapaDisponible: true, limiteDisponible: true },
+  { id: "san_juan_teitipac", nombre: "Pueblo San Juan Teitipac", grupo: "Tlacolula", mapaDisponible: true, limiteDisponible: true },
+  { id: "san_lucas_quiviani", nombre: "Pueblo San Lucas Quiviani", grupo: "Tlacolula", mapaDisponible: true, limiteDisponible: true },
+  { id: "san_pablo_guila", nombre: "Pueblo San Pablo Güila", grupo: "Tlacolula", mapaDisponible: true, limiteDisponible: true },
+  { id: "san_pablo_mitla", nombre: "Pueblo San Pablo Mitla", grupo: "Tlacolula", mapaDisponible: true, limiteDisponible: true },
+  { id: "santa_ana_del_rio", nombre: "Pueblo Santa Ana del Río", grupo: "Tlacolula", mapaDisponible: true, limiteDisponible: true },
+  { id: "santa_maria_zoquitlan", nombre: "Pueblo Santa María Zoquitlán", grupo: "Tlacolula", mapaDisponible: true, limiteDisponible: true },
+  { id: "tlacolula", nombre: "Pueblo Tlacolula", grupo: "Tlacolula", mapaDisponible: true, limiteDisponible: true },
+  { id: "villa_diaz_ordaz", nombre: "Pueblo Villa Díaz Ordaz", grupo: "Tlacolula", mapaDisponible: true, limiteDisponible: true }
+];
+
+const overlayConfigs = catalogoPueblos.map(item => ({
+  id: `mapa_${item.id}`, nombre: item.nombre,
+  url: `./tiles/pueblos/${item.id}/{z}/{x}/{y}.png`,
+  disponible: item.mapaDisponible,
+  opacidadInicial: 0.6, minZoom: 5, maxZoom: 20, maxNativeZoom: 20
+}));
+const overlayLayers = {};
+overlayConfigs.forEach(cfg => {
+  if (cfg.disponible === false) return;
+  overlayLayers[cfg.id] = L.tileLayer(cfg.url, {
+    opacity: cfg.opacidadInicial,
+    minZoom: cfg.minZoom,
+    maxZoom: cfg.maxZoom,
+    maxNativeZoom: cfg.maxNativeZoom,
+    tms: true
+  });
+});
+
+/* POLÍGONOS DE PUEBLOS */
+const geojsonConfigs = catalogoPueblos.map(item => ({
+  id: `poli_${item.id}`, nombre: `Límite de ${item.nombre}`,
+  url: `./geojson/pueblos/${item.id}.geojson`, color: "#ff7800",
+  disponible: item.limiteDisponible
+}));
+const geojsonLayers = {};
+const pueblos = catalogoPueblos.map(item => ({
+  nombre: item.nombre, grupo: item.grupo,
+  mapa: `mapa_${item.id}`, limite: `poli_${item.id}`
+}));
+
+const overlayById = Object.fromEntries(overlayConfigs.map(cfg => [cfg.id, cfg]));
+const geojsonById = Object.fromEntries(geojsonConfigs.map(cfg => [cfg.id, cfg]));
+const puebloControls = document.getElementById("pueblo-controls");
+const limitInputs = {};
+const grupos = new Map();
+["Centro", "Etla", "Ocotlán", "Tlacolula"].forEach(nombre => {
+  const group = document.createElement("details");
+  group.className = "district-group";
+  const summary = document.createElement("summary");
+  summary.append(document.createTextNode(nombre));
+  const count = document.createElement("span");
+  count.className = "district-count";
+  count.textContent = `${pueblos.filter(item => item.grupo === nombre).length} pueblos`;
+  summary.appendChild(count);
+  group.appendChild(summary);
+  puebloControls.appendChild(group);
+  grupos.set(nombre, group);
+});
+const emptyState = document.createElement("p");
+emptyState.className = "empty-state";
+emptyState.textContent = "No se encontraron pueblos.";
+emptyState.hidden = true;
+emptyState.setAttribute("role", "status");
+puebloControls.appendChild(emptyState);
+
+pueblos.forEach(item => {
+  const configuredMap = item.mapa ? overlayById[item.mapa] : null;
+  const mapCfg = configuredMap && configuredMap.disponible !== false ? configuredMap : null;
+  const limitPending = geojsonById[item.limite]?.disponible === false;
+  const row = document.createElement("div");
+  row.className = "pueblo-row";
+  row.dataset.name = item.nombre.toLocaleLowerCase("es");
+  row.innerHTML = `
+    <div class="pueblo-name">${item.nombre}</div>
+    <label class="layer-check" title="${mapCfg ? `Activar mapa histórico de ${item.nombre}` : "Mapa histórico pendiente de incorporar"}">
+      <input class="map-check" type="checkbox" ${mapCfg ? `data-id="${mapCfg.id}"` : "disabled"}
+             aria-label="Mapa histórico de ${item.nombre}${mapCfg ? "" : " (pendiente)"}">
+      ${mapCfg ? "" : '<span class="pending-mark" aria-hidden="true">PEND.</span>'}
+    </label>
+    <label class="layer-check" title="${limitPending ? "Límite territorial pendiente de incorporar" : "Cargando límite territorial"}">
+      <input class="limit-check" type="checkbox" data-id="${item.limite}" disabled
+             aria-label="Límite de ${item.nombre}${limitPending ? " (pendiente)" : ""}">
+      ${limitPending ? '<span class="pending-mark" aria-hidden="true">PEND.</span>' : ""}
+    </label>
+    ${mapCfg ? `
+      <div class="opacity-row">
+        <span>Opacidad</span>
+        <input type="range" min="0" max="1" step="0.05" value="${mapCfg.opacidadInicial}"
+               data-id="${mapCfg.id}" aria-label="Opacidad del mapa histórico de ${item.nombre}">
+        <output>${Math.round(mapCfg.opacidadInicial * 100)}%</output>
+      </div>` : ""}
+  `;
+  grupos.get(item.grupo).appendChild(row);
+
+  const mapCheck = row.querySelector(".map-check");
+  const range = row.querySelector('input[type="range"]');
+  const output = row.querySelector("output");
+  if (mapCfg) {
+    mapCheck.addEventListener("change", e => {
+      if (e.target.checked) {
+        overlayLayers[mapCfg.id].addTo(map);
+        row.classList.add("map-active");
+        showStatus(`Mapa histórico de ${item.nombre} activado`);
+      } else {
+        map.removeLayer(overlayLayers[mapCfg.id]);
+        row.classList.remove("map-active");
+      }
+    });
+    range.addEventListener("input", e => {
+      overlayLayers[mapCfg.id].setOpacity(parseFloat(e.target.value));
+      output.value = `${Math.round(parseFloat(e.target.value) * 100)}%`;
+    });
+  }
+
+  limitInputs[item.limite] = {
+    input: row.querySelector(".limit-check"),
+    label: row.querySelectorAll(".layer-check")[1],
+    nombre: item.nombre
+  };
+});
+
+geojsonConfigs.forEach(cfg => {
+  if (cfg.disponible === false) return;
+  const control = limitInputs[cfg.id];
+  fetch(cfg.url)
+    .then(response => {
+      if (!response.ok) {
+        throw new Error("No se pudo cargar " + cfg.url);
+      }
+      return response.json();
+    })
+    .then(data => {
+      const layer = L.geoJSON(data, {
+        style: {
+          color: cfg.color,
+          weight: 2,
+          fillColor: cfg.color,
+          fillOpacity: 0.25
+        },
+        onEachFeature: function (feature, layer) {
+          layer.bindPopup(`<strong>${cfg.nombre}</strong>`);
+        }
+      });
+
+      geojsonLayers[cfg.id] = layer;
+      control.input.disabled = false;
+      control.label.title = `Activar límite de ${control.nombre}`;
+
+      control.input.addEventListener("change", e => {
+        const lyr = geojsonLayers[e.target.dataset.id];
+
+        if (e.target.checked) {
+          lyr.addTo(map);
+          if (lyr.getBounds().isValid()) map.fitBounds(lyr.getBounds());
+          showStatus(`Límite de ${control.nombre} activado`);
+        } else {
+          map.removeLayer(lyr);
+        }
+      });
+    })
+    .catch(error => {
+      console.error("Error cargando GeoJSON:", error);
+      control.label.title = "El archivo del límite no está disponible en esta ubicación";
+    });
+});
+
+/* INTERFAZ Y ACCESIBILIDAD */
+const layersPanel = document.getElementById("paneles-laterales");
+const layersButton = document.getElementById("layers-button");
+layersButton.addEventListener("click", () => {
+  const hidden = layersPanel.classList.toggle("is-hidden");
+  layersButton.setAttribute("aria-expanded", String(!hidden));
+  if (!hidden) setTimeout(() => map.invalidateSize(), 240);
+});
+
+document.getElementById("reset-button").addEventListener("click", () => {
+  map.setView(initialView.center, initialView.zoom);
+  showStatus("Vista inicial restablecida");
+});
+
+const helpDialog = document.getElementById("help-dialog");
+function openHelp() {
+  if (typeof helpDialog.showModal === "function") helpDialog.showModal();
+  else {
+    helpDialog.setAttribute("open", "");
+    helpDialog.classList.add("dialog-fallback");
+  }
+}
+function closeHelp() {
+  if (typeof helpDialog.close === "function") helpDialog.close();
+  else helpDialog.removeAttribute("open");
+  helpDialog.classList.remove("dialog-fallback");
+}
+document.getElementById("help-button").addEventListener("click", openHelp);
+document.getElementById("close-help").addEventListener("click", closeHelp);
+helpDialog.addEventListener("click", e => {
+  if (e.target === helpDialog) closeHelp();
+});
+
+const normalizeSearch = value => value.toLocaleLowerCase("es").normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+let beforeSearch = null;
+document.getElementById("layer-search").addEventListener("input", e => {
+  const term = normalizeSearch(e.target.value.trim());
+  if (term && !beforeSearch) beforeSearch = new Map([...grupos].map(([name, group]) => [name, group.open]));
+  let matches = 0;
+  grupos.forEach((group, name) => {
+    let visible = 0;
+    group.querySelectorAll(".pueblo-row[data-name]").forEach(row => {
+      row.hidden = !!term && !normalizeSearch(row.dataset.name).includes(term) && !normalizeSearch(name).includes(term);
+      if (!row.hidden) visible++;
+    });
+    group.hidden = visible === 0;
+    matches += visible;
+    if (term) group.open = visible > 0;
+    else if (beforeSearch) group.open = beforeSearch.get(name);
+  });
+  emptyState.hidden = matches > 0;
+  if (!term) beforeSearch = null;
+});
+
+window.addEventListener("resize", () => map.invalidateSize());
+}); // fin DOMContentLoaded
+</script>
+</body>
+</html>
