@@ -1,0 +1,8 @@
+{
+"type": "FeatureCollection",
+"name": "san_pedro_guegorexe",
+"crs": { "type": "name", "properties": { "name": "urn:ogc:def:crs:OGC:1.3:CRS84" } },
+"features": [
+{"type":"Feature","properties":{"Pueblo":"San Pedro Guegorexe","Distrito":"Ocotlan","Fecha":"Calca de 1907","Fuente":"Mapoteca Orozco y Berra","Mapa Refer":null},"geometry":{"type":"MultiPolygon","coordinates":[[[[-96.678478524358297,16.869135956619385],[-96.673068708013417,16.879851896353166],[-96.670529360604576,16.882421474088297],[-96.668473698416477,16.884235293666034],[-96.663688706614025,16.885730179518429],[-96.650684420565867,16.882312534999215],[-96.646380185042887,16.857949072115346],[-96.659750789007902,16.859877230393707],[-96.679623535996996,16.861454799813178],[-96.678478524358297,16.869135956619385]]]]}}
+]
+}
