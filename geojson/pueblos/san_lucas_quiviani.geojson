@@ -1,0 +1,8 @@
+{
+"type": "FeatureCollection",
+"name": "san_lucas_quiviani",
+"crs": { "type": "name", "properties": { "name": "urn:ogc:def:crs:OGC:1.3:CRS84" } },
+"features": [
+{"type":"Feature","properties":{"Pueblo":"San Lucas Quiavini","Distrito":"Tlacolula","Fecha":"Calca de 1908","Fuente":"Mapoteca Orozco y Berra","Mapa Refer":null},"geometry":{"type":"MultiPolygon","coordinates":[[[[-96.494778612418528,16.876423497377587],[-96.493608456971828,16.907774187632121],[-96.432760373742852,16.904228835165796],[-96.436075814175197,16.86783847174285],[-96.494778612418528,16.876423497377587]]]]}}
+]
+}
